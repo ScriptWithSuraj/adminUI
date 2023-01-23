@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import "./UsersListPage.css";
 import Pagination from "./Pagination";
+import EditUser from "./EditUser";
+import config from "../services/config";
+import SearchUser from "./SearchUser";
 const UsersListPage = () => {
   const [users, setUsers] = useState([]); // users data from api call.
   // { for pagination }
@@ -8,8 +11,6 @@ const UsersListPage = () => {
   const usersPerPage = 10; // total users displayed per page.
   let indexOfLastUser = currentUsersPage * usersPerPage; // determines the last user on the page.
   let indexOfFirstUser = indexOfLastUser - usersPerPage; // determines the first user on the page.
-  const currentUsers = users.slice(indexOfFirstUser, indexOfLastUser); // detremines the total users currently on the page.
-  const totalPages = users.length; // determines the total page numbers need to be displayed on pagination.
   // { for Users table operations}
   const [isChecked, setIsChecked] = useState([]); // contains the lists of users which are selected using checkbox.
   const [isCheckedAll, setIsCheckedAll] = useState(false); // checking whether all users are selected on current page.
@@ -17,15 +18,18 @@ const UsersListPage = () => {
   const [searchedUser, setSearchedUsers] = useState([]);
   const [searchUser, setSearchUser] = useState(""); //  searching user by name, email or by role.
   // const [data, setData] = useState([]); //  this state helps to set the setUser state when search becomes empty
+  const currentUsers =
+    searchUser.length < 1
+      ? users.slice(indexOfFirstUser, indexOfLastUser)
+      : searchedUser.slice(indexOfFirstUser, indexOfLastUser); // detremines the total users currently on the page.
   const [isEditing, setIsEditing] = useState(-1); //  this state holds the id of currently edited user.
+  const totalPages = users.length; // determines the total page numbers need to be displayed on pagination.
+  const totalPagesSearched = searchedUser.length;
 
-  //  getting users data  from api
-
+  //  getting users data  from api
   const getUsersInformations = async () => {
     try {
-      const response = await fetch(
-        "https://geektrust.s3-ap-southeast-1.amazonaws.com/adminui-problem/members.json"
-      );
+      const response = await fetch(config.endpoint);
       const usersData = await response.json();
       setUsers(usersData);
       // setData(usersData);
@@ -34,7 +38,7 @@ const UsersListPage = () => {
       return null;
     }
   };
-  // api call on  every mounting
+  // api call on  every mounting
   useEffect(() => {
     getUsersInformations();
   }, []);
@@ -45,13 +49,15 @@ const UsersListPage = () => {
     if (search !== "") {
       const filteredUsers = users.filter(
         (user) =>
-          user.name.toLowerCase().includes(e.target.value.toLowerCase()) ||
-          user.email.toLowerCase().includes(e.target.value.toLowerCase()) ||
-          user.role.toLowerCase().includes(e.target.value.toLowerCase())
+          user.name.toLowerCase().includes(search.toLowerCase()) ||
+          user.email.toLowerCase().includes(search.toLowerCase()) ||
+          user.role.toLowerCase().includes(search.toLowerCase())
       );
+
+      setCurrentUsersPage(1);
       setSearchedUsers(filteredUsers);
     } else {
-      setSearchedUsers(users);
+      setSearchedUsers([]);
     }
     setSearchUser(e.target.value);
   };
@@ -80,95 +86,60 @@ const UsersListPage = () => {
   const handleEdit = (userId) => {
     setIsEditing(userId);
   };
-  //   Its a component for editing user by name email role and it takes  three props
-  const EditUser = ({ user, lists, setList }) => {
-    // by name
-    function handleInputName(e) {
-      const value = e.target.value;
-      const newList = lists.map((item) =>
-        item.id === user.id ? { ...item, name: value } : item
-      );
-      setList(newList); // changing setUser state by passing the changed value in  name field
-    }
-    //  by email
-    function handleInputEmail(e) {
-      const value = e.target.value;
-      const newList = lists.map((item) =>
-        item.id === user.id ? { ...item, email: value } : item
-      );
-      setList(newList); // changing setUser state by passing the changed value in  email field
-    }
-    //  by role
-    function handleInputRole(e) {
-      const value = e.target.value;
-      const newList = lists.map((item) =>
-        item.id === user.id ? { ...item, role: value } : item
-      );
-      setList(newList); // changing setUser state by passing the changed value in  role field
-    }
-    return (
-      <tr>
-        <td></td>
-        <td>
-          <input
-            type="text"
-            name="name"
-            value={user.name}
-            onChange={handleInputName}
-          />
-        </td>
-        <td>
-          <input
-            type="text"
-            name="email"
-            value={user.email}
-            onChange={handleInputEmail}
-          />
-        </td>
-        <td>
-          <input
-            type="text"
-            name="role"
-            value={user.role}
-            onChange={handleInputRole}
-          />
-        </td>
-        <td>
-          <button type="submit" className="saveButton">
-            Save
-          </button>
-        </td>
-      </tr>
-    );
-  };
   //  submitting the (changed values in the input field )/ edited field
   const handleSubmit = (e) => {
     e.preventDefault();
     const name = e.target.elements.name.value;
     const email = e.target.elements.email.value;
     const role = e.target.elements.role.value;
-    const newList = users.map((item) =>
-      item.id === isEditing
-        ? { ...item, name: name, email: email, role: role }
-        : item
-    );
-    setUsers(newList);
-    setIsEditing(-1);
+    if (!searchUser.length) {
+      const newList = users.map((item) =>
+        item.id === isEditing
+          ? { ...item, name: name, email: email, role: role }
+          : item
+      );
+      setUsers(newList);
+      setIsEditing(-1);
+    } else {
+      const newList = searchedUser.map((item) =>
+        item.id === isEditing
+          ? { ...item, name: name, email: email, role: role }
+          : item
+      );
+      setSearchedUsers(newList);
+      setIsEditing(-1);
+    }
   };
 
   //  deleting the selected user with delte button present in the row
   const deleteUser = (selectedUser) => {
-    let usersAfterDeletion = users.filter((user) => {
-      return user.id !== selectedUser;
-    });
-    setUsers(usersAfterDeletion);
+    if (!searchUser.length) {
+      const usersAfterDeletion = users.filter((user) => {
+        return user.id !== selectedUser;
+      });
+      setUsers(usersAfterDeletion);
+      // setSearchedUsers(usersAfterDeletion);
+    } else {
+      const usersAfterDeletion = searchedUser.filter((user) => {
+        return user.id !== selectedUser;
+      });
+      setSearchedUsers(usersAfterDeletion);
+      // setUsers(usersAfterDeletion);
+    }
   };
   //  deleting the selected user which are marked as tick by main delete button.
   const deleteSelectedUser = () => {
-    let usersAfterDeletion = users.filter((user) => {
-      return !isChecked.includes(user.id);
-    });
-    setUsers(usersAfterDeletion);
+    if (!searchUser.length) {
+      const usersAfterDeletion = users.filter((user) => {
+        return !isChecked.includes(user.id);
+      });
+      setUsers(usersAfterDeletion);
+    } else {
+      const usersAfterDeletion = searchedUser.filter((user) => {
+        return !isChecked.includes(user.id);
+      });
+      setSearchedUsers(usersAfterDeletion);
+    }
   };
   //   this component contains the user information as tabular row format
   const UsersList = users
@@ -189,7 +160,7 @@ const UsersListPage = () => {
         >
           <td>
             <input
-              key={user.id}
+              // key={user.id}
               type="checkbox"
               id={user.id}
               name={user.name}
@@ -218,10 +189,18 @@ const UsersListPage = () => {
         </tr>
       );
     });
-  const searchUsersList = searchedUser
+  const SearchUsersList = searchedUser
     .slice(indexOfFirstUser, indexOfLastUser)
     .map((user) => {
-      return (
+      return isEditing === user.id ? (
+        <EditUser
+          user={user}
+          lists={searchedUser}
+          setList={setSearchedUsers}
+          key={user.id}
+        />
+      ) : (
+        // user row data
         <tr
           key={user.id}
           style={{
@@ -232,7 +211,7 @@ const UsersListPage = () => {
         >
           <td>
             <input
-              key={user.id}
+              // key={user.id}
               type="checkbox"
               id={user.id}
               name={user.name}
@@ -244,8 +223,18 @@ const UsersListPage = () => {
           <td>{user.role}</td>
           <td>
             <div>
-              <button>edit</button>
-              <button onClick={() => deleteUser(user.id)}>delete</button>
+              <button
+                onClick={() => handleEdit(user.id)}
+                className="editButton"
+              >
+                Edit
+              </button>
+              <button
+                onClick={() => deleteUser(user.id)}
+                className="deleteButton"
+              >
+                Delete
+              </button>
             </div>
           </td>
         </tr>
@@ -255,14 +244,7 @@ const UsersListPage = () => {
     <div className="main">
       <br />
       {/* search bar */}
-      <input
-        className="searchBar"
-        type="text"
-        name="name"
-        placeholder=" Search by name, email or role"
-        onChange={(e) => searchUserData(e)}
-        value={searchUser}
-      />
+      <SearchUser searchUser={searchUser} searchUserData={searchUserData} />
       {/*  user table */}
       <form onSubmit={handleSubmit} className="userForm">
         <table className="table">
@@ -272,7 +254,7 @@ const UsersListPage = () => {
                 <input
                   type="checkbox"
                   name="selectAll"
-                  id="selectAll"
+                  // id="selectAll"
                   onChange={selectAll}
                   checked={isCheckedAll}
                 />
@@ -282,7 +264,7 @@ const UsersListPage = () => {
               <th>Actions</th>
             </tr>
           </thead>
-          <tbody>{searchUser.length < 1 ? UsersList : searchUsersList}</tbody>
+          <tbody>{searchUser.length < 1 ? UsersList : SearchUsersList}</tbody>
         </table>
       </form>
       <button className="deleteAll" type="button" onClick={deleteSelectedUser}>
@@ -291,7 +273,7 @@ const UsersListPage = () => {
       {/*  for pagination */}
       <Pagination
         usersPerPage={usersPerPage}
-        totalUsers={totalPages}
+        totalUsers={searchUser !== "" ? totalPagesSearched : totalPages}
         setCurrentPage={setCurrentUsersPage}
         currentUsersPage={currentUsersPage}
       />
